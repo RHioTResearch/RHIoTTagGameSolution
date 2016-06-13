@@ -1,9 +1,11 @@
 package org.jboss.rhiot.game;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.concurrent.CountDownLatch;
 
 import com.eurotech.cloud.client.EdcCallbackHandler;
 import com.eurotech.cloud.client.EdcClientException;
@@ -22,51 +24,62 @@ import org.jboss.rhiot.services.fsm.GameStateMachine;
 
 
 /**
- * Created by starksm on 6/10/16.
+ * An adaptation of the
+ *
  */
 public class CloudClient implements EdcCallbackHandler {
     private static final Logger log = Logger.getLogger(CloudClient.class);
 
-    // CHANGE THIS; will be 0..7 based on seat number at table
-    private static final int MY_TAG_NO = 0;
-    // CHANGE THIS; will be 0..14 based on gateway number at table
-    private static final int MY_GW_NO = 0;
-
     // DO NOT CHANGE THESE
     private static final String GW_IP_BASE   = "192.168.1.";
-    private static final String GW_ID        = "DN2016-GW"+MY_GW_NO;
+    private static final String GW_ID        = "DN2016-GW"+ CodeSourceTODOs.MY_GW_NO;
     private static final String ACCOUNT_NAME = "Red-Hat";
-    private static final String ASSET_ID     = GW_ID+"-client-"+MY_TAG_NO;
+    private static final String ASSET_ID     = GW_ID+"-client-"+ CodeSourceTODOs.MY_TAG_NO;
     private static final String BROKER_URL   = "mqtt://broker-sandbox.everyware-cloud.com:1883";
-    private static final String CLIENT_ID    = ASSET_ID;
     private static final String USERNAME     = "s-stark";
-    private static final String SUBSCRIBE_TOPIC = GW_ID+"/org.jboss.rhiot.services.RHIoTTagScanner/data";
+    private static final String TOPIC_ROOT = GW_ID+"/org.jboss.rhiot.services.RHIoTTagScanner";
+    private static final String DATA_TOPIC = TOPIC_ROOT+"/data";
+    private static final String CONTROL_TOPIC = "org.jboss.rhiot.services.RHIoTTagScanner/control";
 
     private EdcCloudClient edcCloudClient;
     private ICloudListener listener;
+    private CountDownLatch subConfirmLatch;
 
+    /**
+     * Generate the gateway IP based on the MY_GW_NO
+     * @return
+     */
     public static String calcGWIP() {
-        int subnet = 100 + MY_GW_NO;
+        int subnet = 100 + CodeSourceTODOs.MY_GW_NO;
         String gwIP = GW_IP_BASE + subnet;
         //return gwIP;
         return "192.168.1.104";
     }
-
-    public void start(ICloudListener listener) throws Exception {
-        start(listener, ASSET_ID);
+    public static boolean isTagRegistered(String tagAddress) {
+        return false;
     }
-    public void start(ICloudListener listener, String assetID) throws Exception {
+
+    public static String doGet(String path) throws IOException {
+        String gwIP = calcGWIP();
+        URL getURL = new URL("http://"+gwIP+":8080/rhiot/"+path);
+        String reply = null;
+        try(InputStream is = getURL.openStream()) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+            reply = reader.readLine();
+        }
+        return reply;
+    }
+
+    public void start(ICloudListener listener, String tagAddress) throws Exception {
+        start(listener, ASSET_ID, tagAddress);
+    }
+    public void start(ICloudListener listener, String assetID, String tagAddress) throws Exception {
         String password = System.getenv("PASSWORD");
         if(password == null) {
             // Query the GW for the password
-            String gwIP = calcGWIP();
-            URL getPassURL = new URL("http://"+gwIP+":8080/rhiot/cloud-password");
-            try(InputStream is = getPassURL.openStream()) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-                password = reader.readLine();
-            }
+            password = doGet("cloud-password");
             if(password == null || password.length() == 0)
-                throw new IllegalStateException("Failed to get cloud password from PASSWORD env or GW_IP rest call, "+gwIP);
+                throw new IllegalStateException("Failed to get cloud password from PASSWORD env or GW_IP rest call, "+calcGWIP());
         }
 
         this.listener = listener;
@@ -99,14 +112,29 @@ public class CloudClient implements EdcCallbackHandler {
 
         //
         // Subscribe
-
-        log.info("Subscribe to data topics under: "+SUBSCRIBE_TOPIC);
-        edcCloudClient.subscribe(SUBSCRIBE_TOPIC, "+", 1);
+        subConfirmLatch = new CountDownLatch(2);
+        log.info("Subscribe to data topics under: "+DATA_TOPIC);
+        int dataSubID = edcCloudClient.subscribe(DATA_TOPIC, "+", 1);
 
         System.out.println("Subscribe to control topics of all assets in the account");
-        edcCloudClient.controlSubscribe("+", "#", 1);
-    }
+        int controlSubID = edcCloudClient.controlSubscribe("+", "#", 1);
 
+        /* Not working, just send a message to reset endpoint
+        String tagControlTopic = CONTROL_TOPIC + "/" + tagAddress;
+        // Allocate a new payload
+        EdcPayload payload = new EdcPayload();
+
+        // Timestamp the message
+        payload.setTimestamp(new Date());
+        payload.addMetric("rhiot.tag.hello", "hello");
+        edcCloudClient.publish(tagControlTopic, payload, 0, false);
+        log.info("Sent hello to: "+tagControlTopic);
+        */
+        // Wait until the subscriptions have been confirmed
+        subConfirmLatch.await();
+        String ack = doGet("gamesm?address="+tagAddress);
+        System.out.printf("Get gamesm: %s\n", ack);
+    }
 
     public void stop() throws EdcClientException {
         //
@@ -145,21 +173,26 @@ public class CloudClient implements EdcCallbackHandler {
 
     //display data messages received from broker
     public void publishArrived(String assetId, String topic, EdcPayload msg, int qos, boolean retain) {
-        log.debug("Data publish arrived on semantic topic: " + topic + ", qos: " + qos + ", assetId: " + assetId);
+        log.debug("Data publish arrived on topic: " + topic + ", qos: " + qos + ", assetId: " + assetId+", metrics: "+msg.metrics());
 
         if(listener != null) {
             long time = msg.getTimestamp().getTime();
-            double temp = (double) msg.getMetric(IRHIoTTagScanner.TAG_TEMP);
-            int keys = (int) msg.getMetric(IRHIoTTagScanner.TAG_KEYS);
-            RHIoTTag.KeyState keyState = RHIoTTag.keyStateForMask(keys);
-            int lux = (int) msg.getMetric(IRHIoTTagScanner.TAG_LUX);
-            int gameScore = (int) msg.getMetric(IRHIoTTagScanner.TAG_GAME_SCORE);
-            int gameTimeLeft = (int) msg.getMetric(IRHIoTTagScanner.TAG_GAME_TIME_LEFT);
-            int shootingTimeLeft = (int) msg.getMetric(IRHIoTTagScanner.TAG_SHOOTING_TIME_LEFT);
-            int shotsLef = (int) msg.getMetric(IRHIoTTagScanner.TAG_SHOTS_LEFT);
-            // Tag data and general game information sent everytime
-            listener.tagData(time, temp, keyState, lux);
-            listener.gameInfo(shootingTimeLeft, shotsLef, gameScore, gameTimeLeft);
+            if(msg.metrics().containsKey(IRHIoTTagScanner.TAG_TEMP)) {
+                // Tag data information
+                double temp = (double) msg.getMetric(IRHIoTTagScanner.TAG_TEMP);
+                int keys = (int) msg.getMetric(IRHIoTTagScanner.TAG_KEYS);
+                RHIoTTag.KeyState keyState = RHIoTTag.keyStateForMask(keys);
+                int lux = (int) msg.getMetric(IRHIoTTagScanner.TAG_LUX);
+                listener.tagData(time, temp, keyState, lux);
+            }
+            if(msg.metrics().containsKey(IRHIoTTagScanner.TAG_GAME_SCORE)) {
+                int gameScore = (int) msg.getMetric(IRHIoTTagScanner.TAG_GAME_SCORE);
+                int gameTimeLeft = (int) msg.getMetric(IRHIoTTagScanner.TAG_GAME_TIME_LEFT);
+                int shootingTimeLeft = (int) msg.getMetric(IRHIoTTagScanner.TAG_SHOOTING_TIME_LEFT);
+                int shotsLef = (int) msg.getMetric(IRHIoTTagScanner.TAG_SHOTS_LEFT);
+                // General game information
+                listener.gameInfo(shootingTimeLeft, shotsLef, gameScore, gameTimeLeft);
+            }
             // Game state information sent only on an event
             if(msg.metrics().containsKey(IRHIoTTagScanner.TAG_EVENT)) {
                 String name = msg.getMetric(IRHIoTTagScanner.TAG_NEW_STATE).toString();
@@ -188,10 +221,11 @@ public class CloudClient implements EdcCallbackHandler {
     }
 
     public void published(int messageId) {
-        log.debug("Publish message ID: " + messageId + " confirmed");
+        log.info("Publish message ID: " + messageId + " confirmed");
     }
 
     public void subscribed(int messageId) {
+        subConfirmLatch.countDown();
         log.info("Subscribe message ID: " + messageId + " confirmed");
     }
 

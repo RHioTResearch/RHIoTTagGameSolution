@@ -21,7 +21,7 @@ public class TestCloudClient implements ICloudListener {
 
     public void run() throws Exception {
         cloudClient = new CloudClient();
-        cloudClient.start(this, "DN2016-GW0-client-1");
+        cloudClient.start(this, "DN2016-GW0-client-1", "68:C9:0B:06:F3:0A");
 
     }
     public void stop() throws EdcClientException {

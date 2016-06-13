@@ -10,46 +10,45 @@
 
 <BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefWidth="800.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.jboss.rhiot.game.MainController">
   <bottom>
-    <HBox alignment="CENTER" fillHeight="false" spacing="5.0" BorderPane.alignment="CENTER">
-      <children>
-            <TitledPane collapsible="false" minWidth="100.0" text="CurState" textAlignment="CENTER">
-               <content>
-              <Label fx:id="stateLabel" contentDisplay="CENTER" textAlignment="CENTER" />
-               </content>
-            </TitledPane>
-            <TitledPane collapsible="false" minWidth="100.0" text="PrevState">
-               <content>
-                  <Label fx:id="prevStateLabel" />
-               </content>
-            </TitledPane>
-            <TitledPane collapsible="false" minWidth="100.0" text="LastEvent">
+      <GridPane>
+         <columnConstraints>
+            <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
+            <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
+            <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
+            <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
+            <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" />
+         </columnConstraints>
+         <rowConstraints>
+            <RowConstraints minHeight="10.0" vgrow="SOMETIMES" />
+         </rowConstraints>
+         <children>
+            <TitledPane collapsible="false" minWidth="100.0" text="LastEvent" GridPane.vgrow="ALWAYS">
                <content>
                   <Label fx:id="eventLabel" />
                </content>
             </TitledPane>
-            <TitledPane collapsible="false" text="ButtonState">
+            <TitledPane collapsible="false" minWidth="100.0" text="CurState" textAlignment="CENTER" GridPane.columnIndex="1">
+               <content>
+              <Label fx:id="stateLabel" contentDisplay="CENTER" textAlignment="CENTER" />
+               </content>
+            </TitledPane>
+            <TitledPane collapsible="false" minWidth="100.0" text="PrevState" GridPane.columnIndex="2">
+               <content>
+                  <Label fx:id="prevStateLabel" />
+               </content>
+            </TitledPane>
+            <TitledPane collapsible="false" text="ButtonState" GridPane.columnIndex="3">
                <content>
                   <ChoiceBox fx:id="keyStateChoiceBox" prefWidth="150.0" />
                </content>
             </TitledPane>
-            <TitledPane collapsible="false" minWidth="100.0" text="TimeLeft">
-               <content>
-                  <Label fx:id="timeLeftLabel" />
-               </content>
-            </TitledPane>
-            <TitledPane collapsible="false" minWidth="100.0" text="LuxReading">
+            <TitledPane collapsible="false" minWidth="100.0" text="LuxReading" GridPane.columnIndex="4">
                <content>
                   <Label fx:id="luxLabel" />
                </content>
             </TitledPane>
-      </children>
-      <opaqueInsets>
-        <Insets />
-      </opaqueInsets>
-      <padding>
-        <Insets left="5.0" right="5.0" />
-      </padding>
-    </HBox>
+         </children>
+      </GridPane>
   </bottom>
   <center>
     <StackPane fx:id="mainPane">

@@ -14,7 +14,9 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.Pane;
+import org.apache.log4j.Logger;
 import org.jboss.rhiot.ble.bluez.RHIoTTag;
 import org.jboss.rhiot.services.fsm.GameStateMachine;
 
@@ -22,7 +24,11 @@ import org.jboss.rhiot.services.fsm.GameStateMachine;
  * Created by starksm on 6/9/16.
  */
 public class MainController implements ICloudListener {
+    private static final Logger log = Logger.getLogger(MainController.class);
     private static final int RING_WIDTH = 40;
+    private static final int canvasIndex = 0;
+    private static final int hitCanvasIndex = 1;
+    private static final int hintCanvasIndex = 2;
 
     @FXML
     private Pane mainPane;
@@ -48,9 +54,11 @@ public class MainController implements ICloudListener {
     private ChoiceBox<RHIoTTag.KeyState> keyStateChoiceBox;
     @FXML
     private Label luxLabel;
-    @FXML
-    private Label timeLeftLabel;
 
+    private Canvas hintCanvas;
+    private HintAnimation hintAnimation;
+    private AnimationTimer shotAnimation;
+    private WritableImage savedImage;
     private CloudClient cloudClient;
     private Image redTarget;
     private Image yellowTarget;
@@ -60,21 +68,52 @@ public class MainController implements ICloudListener {
     private boolean running;
 
 
+
     @Override
     public void stateChange(GameStateMachine.GameState prevState, GameStateMachine.GameState newState, GameStateMachine.GameEvent event) {
-        System.out.printf("stateChange(prevState=%s, newState=%s, event=%s)\n", prevState, newState, event);
+        info("stateChange(prevState=%s, newState=%s, event=%s)", prevState, newState, event);
         Platform.runLater(() -> {
             stateLabel.setText(newState.name());
             prevStateLabel.setText(prevState.name());
             eventLabel.setText(event.name());
-            if(prevState == GameStateMachine.GameState.REPLACE_TARGET && newState == GameStateMachine.GameState.SHOOTING)
+            boolean clearTargetState = prevState == GameStateMachine.GameState.REPLACE_TARGET
+                    || prevState == GameStateMachine.GameState.IDLE
+                    || prevState == GameStateMachine.GameState.GAMEOVER;
+            // Are we transitioning to shooting from a state we should clear the target
+            if(clearTargetState && newState == GameStateMachine.GameState.SHOOTING)
                 clearTarget();
+
+            // If we are in a start or end state show the reset hint
+            if(newState == GameStateMachine.GameState.IDLE || newState == GameStateMachine.GameState.GAMEOVER) {
+                hintAnimation.setType(HintAnimation.HintButtonType.BOTH);
+            // If we are at the end of a shooting window show the replace target hint
+            } else if(newState == GameStateMachine.GameState.REPLACE_TARGET) {
+                hintAnimation.setType(HintAnimation.HintButtonType.LEFT);
+                // If we are out of shots display the reload hint
+            } else if(newState == GameStateMachine.GameState.GUN_EMPTY) {
+                hintAnimation.setType(HintAnimation.HintButtonType.RIGHT);
+            }
+            //
+            if(newState == GameStateMachine.GameState.SHOOTING) {
+                // Stop the RESETTING state animation
+                if(shotAnimation != null) {
+                    shotAnimation.stop();
+                    shotAnimation = null;
+                }
+                // Display the current hits, stopping any previous hint animation
+                restoreTarget();
+                hintAnimation.stop();
+            } else if(newState != GameStateMachine.GameState.RESETTING) {
+                // We are in a state needing user interaction with tag buttons
+                fadeTarget();
+                hintAnimation.start();
+            }
         });
     }
 
     @Override
     public void tagData(long time, double temp, RHIoTTag.KeyState keyState, int lux) {
-        //System.out.printf("tagData(time=%s, temp=%.2f, keyState=%s, lux=%d)\n", new Date(time), temp, keyState, lux);
+        debug("tagData(time=%s, temp=%.2f, keyState=%s, lux=%d)", new Date(time), temp, keyState, lux);
         Platform.runLater(() -> {
             luxLabel.setText(String.format("%d", lux));
             keyStateChoiceBox.setValue(keyState);
@@ -100,9 +139,9 @@ public class MainController implements ICloudListener {
 
     @Override
     public void hitDetected(int hitScore, int ringsOffCenter) {
-        System.out.printf("hitDetected(hitScore=%d, ringsOffCenter=%d)\n", hitScore, ringsOffCenter);
+        info("hitDetected(hitScore=%d, ringsOffCenter=%d)", hitScore, ringsOffCenter);
         Platform.runLater(() -> {
-            displayShot(hitScore, ringsOffCenter);
+            shotAnimation = displayShot(hitScore, ringsOffCenter);
         });
     }
 
@@ -119,6 +158,10 @@ public class MainController implements ICloudListener {
         stateLabel.setText("Idle");
         shotsLeftLabel.setText("10");
         hitCanvas.setId("HitCanvas");
+        hintCanvas = new Canvas(canvas.getWidth(), canvas.getHeight());
+        hintCanvas.setId("HintCanvas");
+        mainPane.getChildren().add(hintCanvas);
+        hintAnimation = new HintAnimation(hintCanvas, canvas);
 
         keyStateChoiceBox.setItems(FXCollections.observableArrayList(RHIoTTag.KeyState.values()));
 
@@ -146,12 +189,14 @@ public class MainController implements ICloudListener {
         */
 
         cloudClient = new CloudClient();
-        Platform.runLater(this::startCloudClient);
+        Thread t = new Thread(this::startCloudClient, "CloudClientInit");
+        t.setDaemon(true);
+        t.start();
     }
 
     private void startCloudClient() {
         try {
-            cloudClient.start(this);
+            cloudClient.start(this, "68:C9:0B:06:F3:0A");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -165,7 +210,7 @@ public class MainController implements ICloudListener {
             }
         }
     }
-    private void displayShot(int hitScore, int ringsOffCenter) {
+    private AnimationTimer displayShot(int hitScore, int ringsOffCenter) {
         int index = hitCount % bulletHoles.length;
         Image bh = bulletHoles[index];
         GraphicsContext gc = canvas.getGraphicsContext2D();
@@ -187,27 +232,58 @@ public class MainController implements ICloudListener {
         gc.drawImage(bh, x, y);
         hitCount ++;
 
-        final GraphicsContext gcHit = hitCanvas.getGraphicsContext2D();
-        hitCanvas.setOpacity(0.9);
-        gcHit.drawImage(redTarget, 0, 0);
+        final GraphicsContext gcHint = hintCanvas.getGraphicsContext2D();
+        hintCanvas.setOpacity(0.9);
+        gcHint.drawImage(redTarget, 0, 0);
         AnimationTimer timer = new AnimationTimer() {
+            private boolean increment = false;
             @Override
             public void handle(long now) {
-                double opacity = hitCanvas.getOpacity();
-                opacity -= 0.01;
-                if(opacity < 0) {
-                    opacity = 0;
-                    stop();
+                double opacity = hintCanvas.getOpacity();
+                if(increment)
+                    opacity += 0.01;
+                else
+                    opacity -= 0.01;
+                if(opacity < 0.1) {
+                    increment = true;
                 }
-                hitCanvas.setOpacity(opacity);
-                //System.out.printf("hitCanvas(%d), opacity=%.2f\n", now, opacity);
+                hintCanvas.setOpacity(opacity);
+            }
+
+            @Override
+            public void stop() {
+                hintCanvas.setOpacity(1);
+                gcHint.clearRect(0, 0, hintCanvas.getWidth(), hintCanvas.getHeight());
             }
         };
         timer.start();
+        return timer;
     }
+
     private void clearTarget() {
         GraphicsContext gc = canvas.getGraphicsContext2D();
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
         gc.drawImage(greenTarget, 0, 0);
     }
+    private void fadeTarget() {
+        mainPane.getChildren().remove(hitCanvasIndex);
+        Canvas tmp = new Canvas(canvas.getWidth(), canvas.getHeight());
+        mainPane.getChildren().add(hitCanvasIndex, tmp);
+        GraphicsContext gc = tmp.getGraphicsContext2D();
+        gc.drawImage(yellowTarget, 0, 0);
+    }
+    private void restoreTarget() {
+        mainPane.getChildren().remove(hitCanvasIndex);
+        mainPane.getChildren().add(hitCanvasIndex, hitCanvas);
+    }
+
+    private void debug(String format, Object... args) {
+        String msg = String.format(format, args);
+        log.debug(msg);
+    }
+    private void info(String format, Object... args) {
+        String msg = String.format(format, args);
+        log.info(msg);
+    }
+
 }
