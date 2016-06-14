@@ -24,13 +24,15 @@ import org.jboss.rhiot.services.fsm.GameStateMachine;
 
 
 /**
- * An adaptation of the
+ * An implementation of the EdcCallbackHandler that registers
+ * No changes should be required to this class.
  *
+ * @see CodeSourceTODOs for changes that you need to make
  */
 public class CloudClient implements EdcCallbackHandler {
     private static final Logger log = Logger.getLogger(CloudClient.class);
 
-    // DO NOT CHANGE THESE
+    // DO NOT CHANGE THESE. See the
     private static final String GW_IP_BASE   = "192.168.1.";
     private static final String GW_ID        = "DN2016-GW"+ CodeSourceTODOs.MY_GW_NO;
     private static final String ACCOUNT_NAME = "Red-Hat";
@@ -43,11 +45,12 @@ public class CloudClient implements EdcCallbackHandler {
 
     private EdcCloudClient edcCloudClient;
     private ICloudListener listener;
+    /** Synchornization latch to allow client startup to wait for ack of topic subscriptions */
     private CountDownLatch subConfirmLatch;
 
     /**
      * Generate the gateway IP based on the MY_GW_NO
-     * @return
+     * @return the IP address for MY_GW_NO
      */
     public static String calcGWIP() {
         int subnet = 100 + CodeSourceTODOs.MY_GW_NO;
@@ -142,7 +145,7 @@ public class CloudClient implements EdcCallbackHandler {
         //
         edcCloudClient.stopSession();
         edcCloudClient.terminate();
-        log.info("Terminating EDC Cloud Client");
+        log.info("Terminating Cloud Client");
     }
 
     // -----------------------------------------------------------------------
