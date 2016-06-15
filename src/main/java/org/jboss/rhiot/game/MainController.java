@@ -163,12 +163,8 @@ public class MainController implements ICloudListener {
         mainPane.getChildren().add(hintCanvas);
         hintAnimation = new HintAnimation(hintCanvas, canvas);
 
+        // Load the KeyState values into the keyStateChoiceBox
         keyStateChoiceBox.setItems(FXCollections.observableArrayList(RHIoTTag.KeyState.values()));
-
-        System.out.printf("mainPane children:\n");
-        for(Node node : mainPane.getChildren()) {
-            System.out.printf("\t%s\n", node);
-        }
 
         redTarget = new Image("/target-red_720.png");
         yellowTarget = new Image("/target-yellow_720.png");
@@ -180,14 +176,7 @@ public class MainController implements ICloudListener {
 
         GraphicsContext gc = canvas.getGraphicsContext2D();
         gc.drawImage(greenTarget, 0, 0);
-        System.out.printf("Set target to green\n");
         running = true;
-        /*
-        Thread t = new Thread(this::simulateShots, "ShotSimulator");
-        t.setDaemon(true);
-        t.start();
-        */
-
         cloudClient = new CloudClient();
         Thread t = new Thread(this::startCloudClient, "CloudClientInit");
         t.setDaemon(true);
@@ -196,20 +185,14 @@ public class MainController implements ICloudListener {
 
     private void startCloudClient() {
         try {
-            cloudClient.start(this, "68:C9:0B:06:F3:0A");
+            log.info("Attempting to start cloud client for tag: "+CodeSourceTODOs.MY_TAG_ADDRESS);
+            cloudClient.start(this, CodeSourceTODOs.MY_TAG_ADDRESS);
         } catch (Exception e) {
-            e.printStackTrace();
+            // Display the error
+            ErrorDialog.displayError("Cloud Connection Error", "Could not start the cloud client", "", e);
         }
     }
-    private void simulateShots() {
-        while (running) {
-            displayShot(1000, -1);
-            try {
-                Thread.sleep(5000);
-            } catch (InterruptedException e) {
-            }
-        }
-    }
+
     private AnimationTimer displayShot(int hitScore, int ringsOffCenter) {
         int index = hitCount % bulletHoles.length;
         Image bh = bulletHoles[index];

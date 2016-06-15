@@ -40,7 +40,6 @@ public class CloudClient implements EdcCallbackHandler {
     private static final String BROKER_URL   = "mqtt://broker-sandbox.everyware-cloud.com:1883";
     private static final String USERNAME     = "s-stark";
     private static final String TOPIC_ROOT = GW_ID+"/org.jboss.rhiot.services.RHIoTTagScanner";
-    private static final String DATA_TOPIC = TOPIC_ROOT+"/data";
     private static final String CONTROL_TOPIC = "org.jboss.rhiot.services.RHIoTTagScanner/control";
 
     private EdcCloudClient edcCloudClient;
@@ -62,6 +61,12 @@ public class CloudClient implements EdcCallbackHandler {
         return false;
     }
 
+    /**
+     * Do a GET REST request against the gateway RHIoTTagServlet
+     * @param path - the path for the GET call
+     * @return the string content returned by the call
+     * @throws IOException
+     */
     public static String doGet(String path) throws IOException {
         String gwIP = calcGWIP();
         URL getURL = new URL("http://"+gwIP+":8080/rhiot/"+path);
@@ -116,23 +121,13 @@ public class CloudClient implements EdcCallbackHandler {
         //
         // Subscribe
         subConfirmLatch = new CountDownLatch(2);
+        final String DATA_TOPIC = CodeSourceTODOs.getSubscriptionTopic(TOPIC_ROOT);
         log.info("Subscribe to data topics under: "+DATA_TOPIC);
-        int dataSubID = edcCloudClient.subscribe(DATA_TOPIC, "+", 1);
+        int dataSubID = edcCloudClient.subscribe(DATA_TOPIC, "#", 1);
 
         System.out.println("Subscribe to control topics of all assets in the account");
         int controlSubID = edcCloudClient.controlSubscribe("+", "#", 1);
 
-        /* Not working, just send a message to reset endpoint
-        String tagControlTopic = CONTROL_TOPIC + "/" + tagAddress;
-        // Allocate a new payload
-        EdcPayload payload = new EdcPayload();
-
-        // Timestamp the message
-        payload.setTimestamp(new Date());
-        payload.addMetric("rhiot.tag.hello", "hello");
-        edcCloudClient.publish(tagControlTopic, payload, 0, false);
-        log.info("Sent hello to: "+tagControlTopic);
-        */
         // Wait until the subscriptions have been confirmed
         subConfirmLatch.await();
         String ack = doGet("gamesm?address="+tagAddress);
@@ -143,9 +138,11 @@ public class CloudClient implements EdcCallbackHandler {
         //
         // Stop the session and close the connection
         //
-        edcCloudClient.stopSession();
-        edcCloudClient.terminate();
-        log.info("Terminating Cloud Client");
+        if(edcCloudClient != null) {
+            log.info("Terminating Cloud Client");
+            edcCloudClient.stopSession();
+            edcCloudClient.terminate();
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -182,34 +179,31 @@ public class CloudClient implements EdcCallbackHandler {
             long time = msg.getTimestamp().getTime();
             if(msg.metrics().containsKey(IRHIoTTagScanner.TAG_TEMP)) {
                 // Tag data information
-                double temp = (double) msg.getMetric(IRHIoTTagScanner.TAG_TEMP);
-                int keys = (int) msg.getMetric(IRHIoTTagScanner.TAG_KEYS);
+                double temp = CodeSourceTODOs.extractTemperature(msg);
+                int keys = CodeSourceTODOs.extractKeyState(msg);
                 RHIoTTag.KeyState keyState = RHIoTTag.keyStateForMask(keys);
-                int lux = (int) msg.getMetric(IRHIoTTagScanner.TAG_LUX);
+                int lux = CodeSourceTODOs.extractLuxReading(msg);
                 listener.tagData(time, temp, keyState, lux);
             }
             if(msg.metrics().containsKey(IRHIoTTagScanner.TAG_GAME_SCORE)) {
-                int gameScore = (int) msg.getMetric(IRHIoTTagScanner.TAG_GAME_SCORE);
-                int gameTimeLeft = (int) msg.getMetric(IRHIoTTagScanner.TAG_GAME_TIME_LEFT);
-                int shootingTimeLeft = (int) msg.getMetric(IRHIoTTagScanner.TAG_SHOOTING_TIME_LEFT);
-                int shotsLef = (int) msg.getMetric(IRHIoTTagScanner.TAG_SHOTS_LEFT);
+                int gameScore = CodeSourceTODOs.extractGameScore(msg);
+                int gameTimeLeft = CodeSourceTODOs.extractGameTimeLeft(msg);
+                int shootingTimeLeft = CodeSourceTODOs.extractShootingWindowTimeLeft(msg);
+                int shotsLeft = CodeSourceTODOs.extractShotsLeft(msg);
                 // General game information
-                listener.gameInfo(shootingTimeLeft, shotsLef, gameScore, gameTimeLeft);
+                listener.gameInfo(shootingTimeLeft, shotsLeft, gameScore, gameTimeLeft);
             }
             // Game state information sent only on an event
             if(msg.metrics().containsKey(IRHIoTTagScanner.TAG_EVENT)) {
-                String name = msg.getMetric(IRHIoTTagScanner.TAG_NEW_STATE).toString();
-                GameStateMachine.GameState newState = GameStateMachine.GameState.valueOf(name);
-                name = msg.getMetric(IRHIoTTagScanner.TAG_PREV_STATE).toString();
-                GameStateMachine.GameState prevState = GameStateMachine.GameState.valueOf(name);
-                name = msg.getMetric(IRHIoTTagScanner.TAG_EVENT).toString();
-                GameStateMachine.GameEvent event = GameStateMachine.GameEvent.valueOf(name);
+                GameStateMachine.GameState newState = CodeSourceTODOs.extractState(msg);
+                GameStateMachine.GameState prevState = CodeSourceTODOs.extractPrevState(msg);
+                GameStateMachine.GameEvent event = CodeSourceTODOs.extractEvent(msg);
                 listener.stateChange(prevState, newState, event);
             }
             // Hit information sent only when a hit is detected
             if(msg.metrics().containsKey(IRHIoTTagScanner.TAG_HIT_SCORE)) {
-                int hitScore = (int) msg.getMetric(IRHIoTTagScanner.TAG_HIT_SCORE);
-                int hitRingsOffCenter = (int) msg.getMetric(IRHIoTTagScanner.TAG_HIT_RINGS_OFF_CENTER);
+                int hitScore = CodeSourceTODOs.extractHitScore(msg);
+                int hitRingsOffCenter = CodeSourceTODOs.extractHitDistance(msg);
                 listener.hitDetected(hitScore, hitRingsOffCenter);
             }
         }
