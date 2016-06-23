@@ -185,8 +185,8 @@ public class MainController implements ICloudListener {
 
     private void startCloudClient() {
         try {
-            log.info("Attempting to start cloud client for tag: "+CodeSourceTODOs.MY_TAG_ADDRESS);
-            cloudClient.start(this, CodeSourceTODOs.MY_TAG_ADDRESS);
+            log.info("Attempting to start cloud client for tag: "+CodeSourceTODOs.getMyTagAddress());
+            cloudClient.start(this, CodeSourceTODOs.getMyTagAddress());
         } catch (Exception e) {
             // Display the error
             ErrorDialog.displayError("Cloud Connection Error", "Could not start the cloud client", "", e);
