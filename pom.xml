@@ -9,8 +9,8 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.jboss.rhiot.game</groupId>
-  <artifactId>rhiot-tag-game</artifactId>
-  <version>1.0.1</version>
+  <artifactId>rhiot-tag-game-solution</artifactId>
+  <version>1.0.2</version>
 
   <name>RHIoTTag Game</name>
   <description>The RHIoTTag game solution for the DevNation 2016 code starter</description>
@@ -20,17 +20,6 @@
     <maven.compiler.target>1.8</maven.compiler.target>
     <maven.compiler.source>1.8</maven.compiler.source>
   </properties>
-
-  <build>
-    <resources>
-      <resource>
-        <directory>src/main/java</directory>
-        <includes>
-          <include>**/*.fxml</include>
-        </includes>
-      </resource>
-    </resources>
-  </build>
 
   <repositories>
     <repository>
@@ -100,6 +89,17 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>src/main/java</directory>
+        <includes>
+          <include>**/*.fxml</include>
+        </includes>
+      </resource>
+    </resources>
+  </build>
 
 </project>
 
