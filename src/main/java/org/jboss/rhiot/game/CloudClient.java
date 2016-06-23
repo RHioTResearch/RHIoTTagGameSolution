@@ -32,12 +32,12 @@ import org.jboss.rhiot.services.fsm.GameStateMachine;
 public class CloudClient implements EdcCallbackHandler {
     private static final Logger log = Logger.getLogger(CloudClient.class);
 
-    // DO NOT CHANGE THESE. See the
-    private static final String GW_IP_BASE   = "192.168.1.";
+    // DO NOT CHANGE THESE. See the CodeSourceTODOs.java file
+    private static final String GW_IP_BASE   = "192.168.2.";
     private static final String GW_ID        = "DN2016-GW"+ CodeSourceTODOs.MY_GW_NO;
     private static final String ACCOUNT_NAME = "Red-Hat";
     private static final String ASSET_ID     = GW_ID+"-client-"+ CodeSourceTODOs.MY_TAG_NO;
-    private static final String BROKER_URL   = "mqtt://broker-sandbox.everyware-cloud.com:1883";
+    private static final String BROKER_URL   = "mqtt://broker-Red-Hat.everyware-cloud.com:1883/";
     private static final String USERNAME     = "s-stark";
     private static final String TOPIC_ROOT = GW_ID+"/org.jboss.rhiot.services.RHIoTTagScanner";
     private static final String CONTROL_TOPIC = "org.jboss.rhiot.services.RHIoTTagScanner/control";
@@ -104,8 +104,8 @@ public class CloudClient implements EdcCallbackHandler {
 
         EdcDeviceProfileFactory profFactory = EdcDeviceProfileFactory.getInstance();
         EdcDeviceProfile prof = profFactory.newEdcDeviceProfile();
-        prof.setDisplayName("sstark-gateway client test");			// friendly name for this CLIENT_ID, for display in the Cloud
-        prof.setModelName("Eclipse Java Client");
+        prof.setDisplayName("RHIoTTagGameSolution");
+        prof.setModelName("JavaFX 8 Client");
 
         //set GPS position in device profile - this is sent only once, with the birth certificate
         prof.setLongitude(-122.4194);
@@ -130,8 +130,10 @@ public class CloudClient implements EdcCallbackHandler {
 
         // Wait until the subscriptions have been confirmed
         subConfirmLatch.await();
+        /*
         String ack = doGet("gamesm?address="+tagAddress);
         System.out.printf("Get gamesm: %s\n", ack);
+        */
     }
 
     public void stop() throws EdcClientException {
