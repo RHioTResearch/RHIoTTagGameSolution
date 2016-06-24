@@ -11,7 +11,7 @@ import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 
 /**
- * Created by starksm on 6/9/16.
+ * The JavaFX main application entry point for the solution example
  */
 public class Main extends Application
 {
