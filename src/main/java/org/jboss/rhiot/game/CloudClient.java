@@ -54,8 +54,7 @@ public class CloudClient implements EdcCallbackHandler {
     public static String calcGWIP() {
         int subnet = 100 + CodeSourceTODOs.MY_GW_NO;
         String gwIP = GW_IP_BASE + subnet;
-        //return gwIP;
-        return "192.168.1.104";
+        return gwIP;
     }
     public static boolean isTagRegistered(String tagAddress) {
         return false;
@@ -84,8 +83,6 @@ public class CloudClient implements EdcCallbackHandler {
     public void start(ICloudListener listener, String assetID, String tagAddress) throws Exception {
         String password = System.getenv("PASSWORD");
         if(password == null) {
-            // Query the GW for the password
-            password = doGet("cloud-password");
             if(password == null || password.length() == 0)
                 throw new IllegalStateException("Failed to get cloud password from PASSWORD env or GW_IP rest call, "+calcGWIP());
         }

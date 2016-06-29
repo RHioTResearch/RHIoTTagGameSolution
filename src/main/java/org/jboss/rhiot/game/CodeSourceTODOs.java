@@ -48,13 +48,13 @@ import org.jboss.rhiot.services.fsm.GameStateMachine;
  */
 public class CodeSourceTODOs {
     // TODO: CHANGE THIS; will be 0..7 based on seat number at table
-    public static final int MY_TAG_NO = 0;
+    public static final int MY_TAG_NO = 8;
 
     // TODO: CHANGE THIS; will be 0..14 based on gateway number at table
     public static final int MY_GW_NO = 0;
 
     // TODO: CHANGE THIS; this should be set to the BLE address string printed on your RHIoTTag
-    public static final String MY_TAG_ADDRESS = "F0:B4:48:D6:DA:E0";
+    public static final String MY_TAG_ADDRESS = "A0:E6:F8:AE:FC:85";
 
     /** Set from the first argument to app command line. Not needed for lab. */
     public static String MY_TAG_ADDRESS_OVERRIDE;
